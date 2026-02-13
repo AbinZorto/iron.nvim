@@ -385,6 +385,17 @@ function M.setup()
     end
     items = rev
 
+    local cursor_row = vim.api.nvim_win_get_cursor(0)[1]
+    local nearest_index = 1
+    local nearest_dist = math.huge
+    for i, item in ipairs(items) do
+      local dist = math.abs(item.lnum - cursor_row)
+      if dist < nearest_dist then
+        nearest_dist = dist
+        nearest_index = i
+      end
+    end
+
     local pickers = require("telescope.pickers")
     local finders = require("telescope.finders")
     local conf = require("telescope.config").values
@@ -402,6 +413,7 @@ function M.setup()
 
     pickers.new({}, {
       prompt_title = "Iron Cells",
+      default_selection_index = nearest_index,
       finder = finders.new_table({
         results = items,
         entry_maker = function(item)
