@@ -59,9 +59,6 @@ function M.setup()
 
     if line_nr > 0 then
       vim.api.nvim_win_set_cursor(0, { line_nr, 0 })
-      if direction == "down" then
-        vim.cmd("norm! j")
-      end
     end
   end
 
