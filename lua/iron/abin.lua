@@ -22,7 +22,7 @@ function M.setup()
   end
 
   local function ensure_open_and_cleared()
-    core.clear_repl()
+    core.send(nil, string.char(12))
     local meta = ensure_open()
     if meta == nil then
       return
