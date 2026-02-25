@@ -22,14 +22,19 @@ function M.setup()
   end
 
   local function ensure_open_and_cleared()
-    core.send(nil, string.char(12))
     local meta = ensure_open()
-    if meta == nil then
+    if meta == nil or not ll.repl_exists(meta) then
       return
     end
-    local sb = vim.bo[meta.bufnr].scrollback
-    vim.bo[meta.bufnr].scrollback = 1
-    vim.bo[meta.bufnr].scrollback = sb
+    -- Send Ctrl+L directly to the active REPL job.
+    if meta.job then
+      vim.fn.chansend(meta.job, string.char(12))
+    end
+    local ok, sb = pcall(function() return vim.bo[meta.bufnr].scrollback end)
+    if ok and type(sb) == "number" then
+      vim.bo[meta.bufnr].scrollback = 1
+      vim.bo[meta.bufnr].scrollback = sb
+    end
     return meta
   end
 
