@@ -23,12 +23,81 @@ ll.store = {}
 -- Quick fix for changing repl_open_cmd
 ll.tmp = {}
 
+local function infer_repl_filetype(bufnr, ft)
+  local ok, inferred = pcall(config.repl_filetype, bufnr, ft)
+  if ok and inferred ~= nil and inferred ~= "" then
+    return inferred
+  end
+  return ft
+end
+
+local function running_terminal_job(bufnr)
+  local job = vim.b[bufnr].terminal_job_id
+  if type(job) ~= "number" or job <= 0 then
+    return nil
+  end
+
+  local status = vim.fn.jobwait({ job }, 0)[1]
+  if status == -1 then
+    return job
+  end
+
+  return nil
+end
+
+local function recover_repl_from_buffers(ft)
+  local repl_ft = infer_repl_filetype(0, ft)
+  local candidates = {}
+
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(bufnr) and vim.bo[bufnr].buftype == "terminal" then
+      local job = running_terminal_job(bufnr)
+      if job ~= nil and vim.bo[bufnr].filetype == repl_ft then
+        table.insert(candidates, {
+          bufnr = bufnr,
+          job = job,
+          visible = vim.fn.bufwinid(bufnr) ~= -1,
+        })
+      end
+    end
+  end
+
+  if #candidates == 0 then
+    return nil
+  end
+
+  table.sort(candidates, function(a, b)
+    if a.visible ~= b.visible then
+      return a.visible
+    end
+    return a.bufnr > b.bufnr
+  end)
+
+  local repldef = ll.get_repl_def(ft)
+  return {
+    ft = ft,
+    bufnr = candidates[1].bufnr,
+    job = candidates[1].job,
+    repldef = repldef,
+  }
+end
+
 -- TODO This should not be part of lowlevel
 ll.get = function(ft)
   if ft == nil or ft == "" then
     error("Empty filetype")
   end
-  return config.scope.get(ll.store, ft)
+  local meta = config.scope.get(ll.store, ft)
+  if ll.repl_exists(meta) then
+    return meta
+  end
+
+  local success, recovered = pcall(recover_repl_from_buffers, ft)
+  if success and recovered ~= nil then
+    return ll.set(ft, recovered)
+  end
+
+  return meta
 end
 
 -- TODO this should not be part of lowlevel
