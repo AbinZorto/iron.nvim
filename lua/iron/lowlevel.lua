@@ -45,17 +45,59 @@ local function running_terminal_job(bufnr)
   return nil
 end
 
+ll.repl_is_running = function(meta)
+  if meta == nil then
+    return false
+  end
+  return running_terminal_job(meta.bufnr) ~= nil
+end
+
+local function matches_repl_command(bufnr, repldef)
+  if type(repldef) ~= "table" or type(repldef.command) ~= "table" then
+    return false
+  end
+
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  local title = vim.b[bufnr].term_title
+  local haystacks = { name, title }
+
+  local full_cmd = table.concat(repldef.command, " ")
+  local executable = repldef.command[1]
+
+  for _, haystack in ipairs(haystacks) do
+    if type(haystack) == "string" then
+      if full_cmd ~= "" and string.find(haystack, full_cmd, 1, true) then
+        return true
+      end
+      if type(executable) == "string" and executable ~= "" and string.find(haystack, executable, 1, true) then
+        return true
+      end
+    end
+  end
+
+  return false
+end
+
 local function recover_repl_from_buffers(ft)
   local repl_ft = infer_repl_filetype(0, ft)
+  local repldef
+  local repldef_ok
+  repldef_ok, repldef = pcall(ll.get_repl_def, ft)
+  if not repldef_ok then
+    repldef = nil
+  end
   local candidates = {}
 
   for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_loaded(bufnr) and vim.bo[bufnr].buftype == "terminal" then
       local job = running_terminal_job(bufnr)
-      if job ~= nil and vim.bo[bufnr].filetype == repl_ft then
+      local same_ft = vim.bo[bufnr].filetype == repl_ft
+      local command_match = matches_repl_command(bufnr, repldef)
+      if same_ft or command_match then
         table.insert(candidates, {
           bufnr = bufnr,
           job = job,
+          running = job ~= nil,
           visible = vim.fn.bufwinid(bufnr) ~= -1,
         })
       end
@@ -70,10 +112,15 @@ local function recover_repl_from_buffers(ft)
     if a.visible ~= b.visible then
       return a.visible
     end
+    if a.running ~= b.running then
+      return a.running
+    end
     return a.bufnr > b.bufnr
   end)
 
-  local repldef = ll.get_repl_def(ft)
+  if repldef == nil then
+    repldef = ll.get_repl_def(ft)
+  end
   return {
     ft = ft,
     bufnr = candidates[1].bufnr,
