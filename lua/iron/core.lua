@@ -868,7 +868,13 @@ core.setup = function(opts)
     end
 
     for k, v in pairs(opts.config) do
-      config[k] = v
+      if k == "repl_definition" and type(v) == "table" then
+        for ft, repl in pairs(v) do
+          config.repl_definition[ft] = repl
+        end
+      else
+        config[k] = v
+      end
     end
 
   else
