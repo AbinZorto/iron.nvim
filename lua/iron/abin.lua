@@ -3,10 +3,32 @@ local M = {}
 function M.setup()
   local core = require("iron.core")
   local ll = require("iron.lowlevel")
+  local config = require("iron.config")
+  local fts = require("iron.fts")
 
   --
   -- Helper Functions
   --
+
+  local function get_block_dividers(ft)
+    local repl = rawget(config.repl_definition, ft)
+    if type(repl) == "table" and type(repl.block_deviders) == "table" then
+      return repl.block_deviders
+    end
+
+    local repls = fts[ft]
+    if type(repls) ~= "table" then
+      return {}
+    end
+
+    for _, candidate in pairs(repls) do
+      if type(candidate) == "table" and type(candidate.block_deviders) == "table" then
+        return candidate.block_deviders
+      end
+    end
+
+    return {}
+  end
 
   local function ensure_open()
     local meta = vim.b[0].repl
@@ -52,9 +74,8 @@ function M.setup()
   -- RELIABLE NAVIGATION HELPER
   --
   local function jump_to_cell(direction)
-    local config = require("iron.config")
     local ft = vim.bo.filetype
-    local dividers = config.repl_definition[ft] and config.repl_definition[ft].block_deviders
+    local dividers = get_block_dividers(ft)
 
     if not dividers or #dividers == 0 then
       vim.notify("No block dividers defined for " .. ft, vim.log.levels.ERROR)
@@ -258,9 +279,8 @@ function M.setup()
         vim.api.nvim_win_set_cursor(0, { first_code_line, 0 })
       end
 
-      local config = require("iron.config")
       local ft = vim.bo.filetype
-      local dividers = config.repl_definition[ft] and config.repl_definition[ft].block_deviders
+      local dividers = get_block_dividers(ft)
 
       local top_block_text = ""
       if dividers and #dividers > 0 then
@@ -369,9 +389,8 @@ function M.setup()
       return
     end
 
-    local config = require("iron.config")
     local ft = vim.bo.filetype
-    local dividers = config.repl_definition[ft] and config.repl_definition[ft].block_deviders or {}
+    local dividers = get_block_dividers(ft)
     if #dividers == 0 then
       vim.notify("No iron dividers defined for " .. ft, vim.log.levels.WARN)
       return
@@ -531,7 +550,12 @@ function M.setup()
 
   vim.keymap.set("n", "<leader>ib", function()
     local ft = vim.bo.filetype
-    local divider = require("iron.config").repl_definition[ft].block_deviders[1]
+    local dividers = get_block_dividers(ft)
+    local divider = dividers[1]
+    if divider == nil then
+      vim.notify("No iron dividers defined for " .. ft, vim.log.levels.WARN)
+      return
+    end
     if not current_line_is_blank() then
       vim.api.nvim_feedkeys("}", "n", false)
       vim.defer_fn(function()
