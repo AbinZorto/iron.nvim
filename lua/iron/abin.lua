@@ -40,7 +40,10 @@ function M.setup()
 
   local function clear_then(func)
     return function()
-      ensure_open_and_cleared()
+      local meta = ensure_open_and_cleared()
+      if meta == nil then
+        return
+      end
       func()
     end
   end
@@ -71,7 +74,15 @@ function M.setup()
   -- send_top_block_then_current_block
   --
   local function send_top_block_then_current_block(clear_first)
-    if clear_first then ensure_open_and_cleared() else ensure_open() end
+    local meta
+    if clear_first then
+      meta = ensure_open_and_cleared()
+    else
+      meta = ensure_open()
+    end
+    if meta == nil then
+      return
+    end
 
     local original_pos = vim.api.nvim_win_get_cursor(0)
 

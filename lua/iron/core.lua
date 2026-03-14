@@ -9,6 +9,42 @@ local is_windows = require("iron.util.os").is_windows
 local view = require("iron.view")
 
 local autocmds = {}
+local repl_disabled_filetypes = {
+  javascript = true,
+  javascriptreact = true,
+  jsx = true,
+  typescript = true,
+  typescriptreact = true,
+  tsx = true,
+}
+
+local repl_command_ft = function(ft, bufnr)
+  if ft ~= nil and ft ~= "" then
+    return ft
+  end
+
+  local ok, current_ft = pcall(function()
+    return vim.bo[bufnr or 0].filetype
+  end)
+
+  if ok then
+    return current_ft
+  end
+end
+
+local abort_disabled_repl_command = function(ft, bufnr)
+  local target_ft = repl_command_ft(ft, bufnr)
+
+  if target_ft ~= nil and repl_disabled_filetypes[target_ft] then
+    vim.notify(
+      "Iron REPL commands are disabled for " .. target_ft .. " buffers",
+      vim.log.levels.WARN
+    )
+    return true
+  end
+
+  return false
+end
 
 --- Core functions of iron
 -- @module core
@@ -81,6 +117,10 @@ end
 -- @param ft the filetype of the repl to be created
 -- @treturn table metadata of the repl
 core.repl_here = function(ft)
+  if abort_disabled_repl_command(ft, 0) then
+    return
+  end
+
   local meta = ll.get(ft)
   if ll.repl_exists(meta) then
     vim.api.nvim_set_current_buf(meta.bufnr)
@@ -107,6 +147,10 @@ core.repl_restart = function()
   local current_bufnr = vim.api.nvim_get_current_buf()
 
   if ft ~= nil then
+    if abort_disabled_repl_command(ft, bufnr_here) then
+      return
+    end
+
     local bufnr = ll.new_buffer()
 
     local meta = new_repl.create(
@@ -120,6 +164,10 @@ core.repl_restart = function()
     vim.api.nvim_buf_delete(bufnr_here, { force = true })
     return meta
   else
+    if abort_disabled_repl_command(nil, bufnr_here) then
+      return
+    end
+
     ft = ll.get_buffer_ft(0)
 
     local meta = ll.get(ft)
@@ -157,6 +205,10 @@ end
 -- Otherwise, this will only finish the process.
 -- @param ft filetype
 core.close_repl = function(ft)
+  if abort_disabled_repl_command(ft, 0) then
+    return
+  end
+
   -- see the similar logic on core.send to see how the REPLs created by
   -- core.attach is handled.
   local meta = vim.b[0].repl
@@ -176,6 +228,10 @@ end
 --- Hides the repl windows for a given filetype
 -- @param ft filetype
 core.hide_repl = function(ft)
+  if abort_disabled_repl_command(ft, 0) then
+    return
+  end
+
   ft = ft or ll.get_buffer_ft(0)
   local meta = ll.get(ft)
 
@@ -192,6 +248,10 @@ end
 -- supplied as argument.
 -- @param ft filetype
 core.repl_for = function(ft)
+  if abort_disabled_repl_command(ft, 0) then
+    return
+  end
+
   local meta = ll.get(ft)
   if ll.repl_exists(meta) then
     local currwin = vim.api.nvim_get_current_win()
@@ -215,6 +275,10 @@ end
 -- directly moving the focus to it.
 -- @param ft filetype
 core.focus_on = function(ft)
+  if abort_disabled_repl_command(ft, 0) then
+    return
+  end
+
   local meta = ll.get(ft)
   if ll.repl_exists(meta) then
     focus(meta.bufnr, function()
@@ -235,6 +299,11 @@ end
 -- @param ft filetype (will be inferred if not supplied)
 -- @tparam string|table data data to be sent to the repl.
 local send = function(ft, data)
+  if data == nil then return end
+  if abort_disabled_repl_command(ft, 0) then
+    return
+  end
+
   -- the buffer local variable `repl` is created by core.attach function to
   -- track non-default REPls.
   local meta = vim.b[0].repl
@@ -245,7 +314,6 @@ local send = function(ft, data)
   -- get the REPL meta based on the ft of current buffer.
   if not meta or not ll.repl_exists(meta) then
     ft = ft or ll.get_buffer_ft(0)
-    if data == nil then return end
     meta = ll.get(ft)
   end
 
@@ -290,6 +358,10 @@ end
 -- Builds upon @{core.send}, extracting
 -- the data beforehand.
 core.send_line = function()
+  if abort_disabled_repl_command(nil, 0) then
+    return
+  end
+
   local linenr = vim.api.nvim_win_get_cursor(0)[1] - 1
   local cur_line = vim.api.nvim_buf_get_lines(0, linenr, linenr + 1, 0)[1]
   local width = vim.fn.strwidth(cur_line)
@@ -310,6 +382,10 @@ end
 -- Builds upon @{core.send}, extracting
 -- the data beforehand.
 core.send_until_cursor = function()
+  if abort_disabled_repl_command(nil, 0) then
+    return
+  end
+
   local linenr = vim.api.nvim_win_get_cursor(0)[1] - 1
   local text_until_line = vim.api.nvim_buf_get_lines(0, 0, linenr + 1, 0)
   local last_line = vim.api.nvim_buf_get_lines(0, linenr, linenr + 1, 0)[1]
@@ -430,6 +506,10 @@ end
 -- Additionally, it restores the cursor position as a side-effect.
 -- @param mtype motion type
 core.send_motion = function(mtype)
+  if abort_disabled_repl_command(nil, 0) then
+    return
+  end
+
   core.send(nil, core.mark_motion(mtype))
 end
 
@@ -438,11 +518,19 @@ end
 -- the data is forwarded to the repl through @{core.send},
 -- which will handle the null cases.
 core.visual_send = function()
+  if abort_disabled_repl_command(nil, 0) then
+    return
+  end
+
   core.send(nil, core.mark_visual())
 end
 
 --- Sends the paragraph to the REPL that the cursor is on
 core.send_paragraph = function()
+  if abort_disabled_repl_command(nil, 0) then
+    return
+  end
+
   vim.cmd('normal! vip')
   vim.defer_fn(function()
     core.visual_send()
@@ -455,6 +543,10 @@ end
 -- the last sent chunk. Uses @{marks.get} to retrieve
 -- the boundaries.
 core.send_mark = function()
+  if abort_disabled_repl_command(nil, 0) then
+    return
+  end
+
   local pos = marks.get()
 
   if pos == nil then return end
@@ -498,6 +590,10 @@ end
 -- for jumping through the code. If move is false, the cursor is
 -- not moved.
 core.send_code_block = function(move)
+  if abort_disabled_repl_command(nil, 0) then
+    return
+  end
+
   local block_deviders = config.repl_definition[vim.bo[0].filetype].block_deviders
   if block_deviders == nil then
     error("No block_deviders defined for this repl in repl_definition!")
@@ -532,6 +628,10 @@ end
 --- Attaches a buffer to a repl regardless of it's filetype
 -- If the repl doesn't exist it will be created
 core.attach = function(ft, target)
+  if abort_disabled_repl_command(nil, target) then
+    return
+  end
+
   local meta = ll.get(ft)
 
   if not ll.repl_exists(meta) then
@@ -659,6 +759,10 @@ end
 
 core.watch = function(handler, bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
+  if abort_disabled_repl_command(nil, bufnr) then
+    return
+  end
+
   core.unwatch(bufnr)
   local fname = vim.api.nvim_buf_get_name(bufnr)
   autocmds[fname] = vim.api.nvim_create_autocmd("BufWritePost", {

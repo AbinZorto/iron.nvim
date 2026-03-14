@@ -1,5 +1,8 @@
 -- luacheck: globals unpack
 
+local javascript = require("iron.fts.javascript")
+local typescript = require("iron.fts.typescript")
+
 local fts = {
   clojure = require("iron.fts.clojure"),
   cpp = require("iron.fts.cpp"),
@@ -12,7 +15,9 @@ local fts = {
   haskell = require("iron.fts.haskell"),
   hy = require("iron.fts.hy"),
   janet = require("iron.fts.janet"),
-  javascript = require("iron.fts.javascript"),
+  javascript = javascript,
+  javascriptreact = javascript,
+  jsx = javascript,
   julia = require("iron.fts.julia"),
   lisp = require("iron.fts.lisp"),
   lua = require("iron.fts.lua"),
@@ -32,7 +37,9 @@ local fts = {
   sh = require("iron.fts.sh"),
   stata = require("iron.fts.stata"),
   tcl = require("iron.fts.tcl"),
-  typescript = require("iron.fts.typescript"),
+  typescript = typescript,
+  typescriptreact = typescript,
+  tsx = typescript,
   zsh = require("iron.fts.zsh"),
   fish = require("iron.fts.fish")
 }
